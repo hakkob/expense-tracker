@@ -478,7 +478,7 @@ function clearAuthErr() {
 
 function setSyncState(s) {
   const colors = { syncing:'#ffd86b', synced:'#6bff9e', error:'#ff4d4d', offline:'#555' };
-  const labels = { syncing:'syncing…', synced:'synced', error:'token expired', offline:'not signed in' };
+  const labels = { syncing:'syncing…', synced:'synced', error:'connection error', offline:'not signed in' };
   document.getElementById('sync-dot').style.background  = colors[s] || colors.offline;
   document.getElementById('sync-label').textContent     = labels[s] || labels.offline;
 }
