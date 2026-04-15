@@ -524,6 +524,18 @@ async function apiCall(action, extra = {}) {
   return result;
 }
 
+// ── DEBUG HELPER (open console → type: debugDate()) ─────────────
+async function debugDate() {
+  const r = await apiCall('debugRow');
+  console.log('%c=== DATE DEBUG ===', 'font-size:14px;color:cyan;font-weight:bold');
+  console.log('Timezone:', r.tz);
+  (r.debug || []).forEach((d, i) => {
+    console.log(`--- Row ${i+1} ---`);
+    console.table(d);
+  });
+  return r;
+}
+
 // ── YEAR FILTER ─────────────────────────────────────────────────
 function refreshYearFilter() {
   const years = [...new Set(allEntries.map(r => r.year).filter(Boolean))].sort();
