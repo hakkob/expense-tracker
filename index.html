@@ -759,7 +759,7 @@ function renderTable(data) {
   const monthOpts = MONTHS.map(m => `<option>${m}</option>`).join('');
 
   let html = `<table><thead><tr>
-    <th>Year</th><th>Month</th><th>Expense</th><th>Category</th>
+    <th style="min-width:80px">Year</th><th>Month</th><th>Expense</th><th>Category</th>
     <th>Pay Sched</th><th>Amount</th><th>Paid</th><th>Date Paid</th>
     <th>Notes</th><th></th>
   </tr></thead><tbody>`;
@@ -780,7 +780,7 @@ function renderTable(data) {
       `<option${s === r.paySchedule ? ' selected' : ''}>${s}</option>`).join('');
 
     html += `<tr class="${paidCls}${alt}" data-id="${safeId}">
-      <td><input type="number" class="inline-text" value="${esc(r.year||'')}" style="width:52px"
+      <td><input type="number" class="inline-text" value="${esc(r.year||'')}" style="width:68px"
         onblur="updateInline('${safeId}','year',this.value)"
         onkeydown="if(event.key==='Enter')this.blur()"></td>
       <td><select class="inline-select" onchange="updateInline('${safeId}','month',this.value)">${mOpts}</select></td>
