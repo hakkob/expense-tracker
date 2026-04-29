@@ -59,6 +59,15 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#eef0f5;color:#2c2f3a;mi
 }
 .btn-add:hover{background:#3570d4}
 
+.btn-copy{
+  background:#2e3455;color:#a8b4d0;
+  border:1px solid #3d4570;padding:7px 14px;border-radius:7px;
+  cursor:pointer;font-size:.78rem;font-weight:700;
+  transition:background .15s,color .15s;white-space:nowrap;
+}
+.btn-copy:hover{background:#3d4570;color:#fff}
+.btn-copy:disabled{opacity:.5;cursor:not-allowed}
+
 /* ── Layout ───────────────────────────────────────────────── */
 .container{max-width:1500px;margin:0 auto;padding:20px}
 
@@ -255,6 +264,8 @@ tbody tr.row-unpaid.row-alt{background:#f5f7fc}
         <div class="sync-dot" id="sync-dot"></div>
         <span id="sync-label">not signed in</span>
       </div>
+      <button class="btn-copy" onclick="copyPayPeriod('15th')">↩ Copy 15th</button>
+      <button class="btn-copy" onclick="copyPayPeriod('30th')">↩ Copy 30th</button>
       <button class="btn-add" onclick="openModal()">+ Add Entry</button>
     </div>
   </header>
@@ -798,6 +809,65 @@ async function doDelete() {
   } catch (err) {
     toast('Error: ' + err.message, 'err');
     setSyncState('error');
+  }
+}
+
+// ── COPY PAY PERIOD ──────────────────────────────────────────────
+async function copyPayPeriod(sched) {
+  const now = new Date();
+  const lastDate  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastYear  = lastDate.getFullYear();
+  const lastMonth = MONTHS[lastDate.getMonth()];
+  const curYear   = now.getFullYear();
+  const curMonth  = MONTHS[now.getMonth()];
+
+  const source = allEntries.filter(r =>
+    r.month === lastMonth && Number(r.year) === lastYear && r.paySchedule === sched
+  );
+
+  if (!source.length) {
+    toast(`No ${sched} entries found in ${lastMonth} ${lastYear}.`, 'err');
+    return;
+  }
+
+  const existing = allEntries.filter(r =>
+    r.month === curMonth && Number(r.year) === curYear && r.paySchedule === sched
+  );
+
+  let msg = `Copy ${source.length} ${sched} entries from ${lastMonth} ${lastYear} → ${curMonth} ${curYear}?`;
+  if (existing.length) {
+    msg += `\n\n⚠️ ${existing.length} ${sched} entries already exist for ${curMonth} ${curYear}.`;
+  }
+  if (!confirm(msg)) return;
+
+  const btns = document.querySelectorAll('.btn-copy');
+  btns.forEach(b => b.disabled = true);
+  setSyncState('syncing');
+  let saved = 0;
+
+  try {
+    for (const entry of source) {
+      const data = {
+        id: null, year: curYear, month: curMonth,
+        expense: entry.expense, category: entry.category,
+        paySchedule: entry.paySchedule, amount: entry.amount,
+        paid: false, datePaid: '', notes: entry.notes
+      };
+      const result = await apiCall('saveEntry', { data });
+      if (result.error) throw new Error(result.error);
+      allEntries.push({ ...data, id: result.id });
+      saved++;
+    }
+    setSyncState('synced');
+    toast(`Copied ${saved} entries to ${curMonth} ${curYear}.`, 'ok');
+    refreshYearFilter();
+    render();
+  } catch (err) {
+    setSyncState('error');
+    toast(`Error after ${saved} saved: ${err.message}`, 'err');
+    if (saved > 0) { refreshYearFilter(); render(); }
+  } finally {
+    btns.forEach(b => b.disabled = false);
   }
 }
 
