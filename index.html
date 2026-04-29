@@ -217,6 +217,38 @@ tbody tr.row-unpaid.row-alt{background:#f5f7fc}
 .confirm-box p{font-size:.88rem;color:#444;line-height:1.5;margin-bottom:20px}
 .confirm-box strong{color:#c03030}
 .confirm-acts{display:flex;justify-content:center;gap:9px}
+
+/* ── Copy preview modal ───────────────────────────────────── */
+.copy-modal{
+  background:#fff;border-radius:14px;padding:24px 26px;
+  width:540px;max-width:95vw;max-height:85vh;
+  display:flex;flex-direction:column;
+  box-shadow:0 12px 40px rgba(0,0,0,.2);
+}
+.copy-modal h2{font-size:.95rem;font-weight:800;color:#1a1f36;margin-bottom:4px}
+.copy-subtitle{font-size:.78rem;color:#8891a8;margin-bottom:14px}
+.copy-list{
+  flex:1;overflow-y:auto;border:1px solid #eef0f5;border-radius:8px;
+  margin-bottom:16px;
+}
+.copy-list table{width:100%;border-collapse:collapse;font-size:.78rem}
+.copy-list thead tr{background:#f5f7fc}
+.copy-list thead th{padding:7px 10px;text-align:left;font-weight:700;color:#555;
+  font-size:.7rem;text-transform:uppercase;letter-spacing:.3px}
+.copy-list tbody tr{border-top:1px solid #eef0f5}
+.copy-list tbody td{padding:7px 10px;color:#333}
+.copy-warn{
+  background:#fff8e6;border:1px solid #f5d87a;border-radius:7px;
+  padding:8px 12px;font-size:.77rem;color:#7a5c00;margin-bottom:14px;
+}
+.copy-acts{display:flex;justify-content:flex-end;gap:9px}
+.btn-copy-go{
+  background:#1a9e52;color:#fff;border:none;
+  padding:8px 20px;border-radius:7px;cursor:pointer;
+  font-size:.83rem;font-weight:700;transition:background .15s;
+}
+.btn-copy-go:hover{background:#148040}
+.btn-copy-go:disabled{background:#7ec8a0;cursor:not-allowed}
 .btn-del-confirm{background:#c03030;color:#fff;border:none;padding:8px 18px;border-radius:7px;cursor:pointer;font-size:.83rem;font-weight:700}
 .btn-del-confirm:hover{background:#a02020}
 
@@ -393,6 +425,25 @@ tbody tr.row-unpaid.row-alt{background:#f5f7fc}
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
       <button class="btn-save" id="btnSave" onclick="saveEntry()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Copy Preview Modal ────────────────────────────────────── -->
+<div class="overlay" id="copyOverlay">
+  <div class="copy-modal">
+    <h2 id="copyTitle">Copy Entries</h2>
+    <div class="copy-subtitle" id="copySubtitle"></div>
+    <div class="copy-warn" id="copyWarn" style="display:none"></div>
+    <div class="copy-list">
+      <table>
+        <thead><tr><th>Expense</th><th>Category</th><th>Amount</th></tr></thead>
+        <tbody id="copyListBody"></tbody>
+      </table>
+    </div>
+    <div class="copy-acts">
+      <button class="btn-cancel" onclick="closeCopyModal()">Cancel</button>
+      <button class="btn-copy-go" id="btnCopyGo" onclick="doCopy()">Copy</button>
     </div>
   </div>
 </div>
@@ -813,8 +864,11 @@ async function doDelete() {
 }
 
 // ── COPY PAY PERIOD ──────────────────────────────────────────────
-async function copyPayPeriod(sched) {
-  const now = new Date();
+let copySource   = [];
+let copyTarget   = {};
+
+function copyPayPeriod(sched) {
+  const now       = new Date();
   const lastDate  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const lastYear  = lastDate.getFullYear();
   const lastMonth = MONTHS[lastDate.getMonth()];
@@ -822,7 +876,9 @@ async function copyPayPeriod(sched) {
   const curMonth  = MONTHS[now.getMonth()];
 
   const source = allEntries.filter(r =>
-    r.month === lastMonth && Number(r.year) === lastYear && r.paySchedule === sched
+    r.month === lastMonth &&
+    Number(r.year) === lastYear &&
+    r.paySchedule === sched
   );
 
   if (!source.length) {
@@ -834,41 +890,89 @@ async function copyPayPeriod(sched) {
     r.month === curMonth && Number(r.year) === curYear && r.paySchedule === sched
   );
 
-  let msg = `Copy ${source.length} ${sched} entries from ${lastMonth} ${lastYear} → ${curMonth} ${curYear}?`;
-  if (existing.length) {
-    msg += `\n\n⚠️ ${existing.length} ${sched} entries already exist for ${curMonth} ${curYear}.`;
-  }
-  if (!confirm(msg)) return;
+  // Stash for doCopy()
+  copySource = source;
+  copyTarget = { year: curYear, month: curMonth };
 
+  // Build preview
+  document.getElementById('copyTitle').textContent =
+    `Copy ${sched} → ${curMonth} ${curYear}`;
+  document.getElementById('copySubtitle').textContent =
+    `${source.length} entr${source.length === 1 ? 'y' : 'ies'} from ${lastMonth} ${lastYear} will be copied as unpaid.`;
+
+  const warn = document.getElementById('copyWarn');
+  if (existing.length) {
+    warn.textContent =
+      `⚠️ ${existing.length} ${sched} entr${existing.length === 1 ? 'y' : 'ies'} already exist for ${curMonth} ${curYear}.`;
+    warn.style.display = 'block';
+  } else {
+    warn.style.display = 'none';
+  }
+
+  document.getElementById('copyListBody').innerHTML = source.map(r =>
+    `<tr>
+      <td>${esc(r.expense)}</td>
+      <td>${badge(r.category, CAT_BADGE[r.category]||'')}</td>
+      <td class="amt">${php(r.amount)}</td>
+    </tr>`
+  ).join('');
+
+  document.getElementById('btnCopyGo').textContent = `Copy ${source.length} Entries`;
+  document.getElementById('copyOverlay').classList.add('open');
+}
+
+function closeCopyModal() {
+  document.getElementById('copyOverlay').classList.remove('open');
+  copySource = [];
+  copyTarget = {};
+}
+
+async function doCopy() {
+  if (!copySource.length) return;
+
+  const btn  = document.getElementById('btnCopyGo');
   const btns = document.querySelectorAll('.btn-copy');
+  btn.disabled = true;
   btns.forEach(b => b.disabled = true);
   setSyncState('syncing');
+
+  const { year: curYear, month: curMonth } = copyTarget;
+  const failed = [];
   let saved = 0;
 
-  try {
-    for (const entry of source) {
-      const data = {
-        id: null, year: curYear, month: curMonth,
-        expense: entry.expense, category: entry.category,
-        paySchedule: entry.paySchedule, amount: entry.amount,
-        paid: false, datePaid: '', notes: entry.notes
-      };
+  for (const entry of copySource) {
+    const data = {
+      id: null, year: curYear, month: curMonth,
+      expense: entry.expense, category: entry.category,
+      paySchedule: entry.paySchedule, amount: entry.amount,
+      paid: false, datePaid: '', notes: entry.notes
+    };
+    try {
       const result = await apiCall('saveEntry', { data });
       if (result.error) throw new Error(result.error);
       allEntries.push({ ...data, id: result.id });
       saved++;
+    } catch (err) {
+      failed.push(entry.expense);
     }
-    setSyncState('synced');
-    toast(`Copied ${saved} entries to ${curMonth} ${curYear}.`, 'ok');
-    refreshYearFilter();
-    render();
-  } catch (err) {
-    setSyncState('error');
-    toast(`Error after ${saved} saved: ${err.message}`, 'err');
-    if (saved > 0) { refreshYearFilter(); render(); }
-  } finally {
-    btns.forEach(b => b.disabled = false);
   }
+
+  closeCopyModal();
+  btns.forEach(b => b.disabled = false);
+
+  if (failed.length) {
+    setSyncState('error');
+    toast(`Saved ${saved}, failed: ${failed.join(', ')}`, 'err');
+  } else {
+    setSyncState('synced');
+    toast(`Copied ${saved} entr${saved === 1 ? 'y' : 'ies'} to ${curMonth} ${curYear}!`, 'ok');
+  }
+
+  // Switch filter to the target month so copied entries are visible
+  document.getElementById('fYear').value  = String(curYear);
+  document.getElementById('fMonth').value = curMonth;
+  refreshYearFilter();
+  render();
 }
 
 // ── TOAST ────────────────────────────────────────────────────────
@@ -886,6 +990,9 @@ document.getElementById('modalOverlay').addEventListener('click', e => {
 });
 document.getElementById('confirmOverlay').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeConfirm();
+});
+document.getElementById('copyOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeCopyModal();
 });
 
 // ── KEYBOARD ─────────────────────────────────────────────────────
