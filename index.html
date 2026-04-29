@@ -155,6 +155,14 @@ tbody tr.row-unpaid.row-alt{background:#f5f7fc}
   transition:border-color .15s;max-width:120px;
 }
 .inline-date:focus{border-color:#4a86e8;box-shadow:0 0 0 2px rgba(74,134,232,.12)}
+.inline-notes{
+  border:1px solid transparent;border-radius:5px;
+  padding:3px 6px;font-size:.8rem;color:#333;
+  outline:none;font-family:inherit;background:transparent;
+  width:100%;min-width:120px;transition:border-color .15s,background .15s;
+}
+.inline-notes:hover{border-color:#dde1ea;background:#fff}
+.inline-notes:focus{border-color:#4a86e8;background:#fff;box-shadow:0 0 0 2px rgba(74,134,232,.12)}
 .saving-flash{opacity:.5;pointer-events:none}
 
 /* ── Amount ───────────────────────────────────────────────── */
@@ -732,7 +740,9 @@ function renderTable(data) {
         <input type="date" class="inline-date" value="${esc(r.datePaid||'')}"
           onchange="updateInline('${safeId}','datePaid',this.value)">
       </td>
-      <td>${esc(r.notes)}</td>
+      <td><input type="text" class="inline-notes" value="${esc(r.notes||'')}"
+        placeholder="—"
+        onchange="updateInline('${safeId}','notes',this.value)"></td>
       <td><div class="act-wrap">
         <button class="btn-edit" onclick="openEdit('${safeId}')">Edit</button>
         <button class="btn-del"  onclick="openConfirm('${safeId}','${safeName}')">Del</button>
