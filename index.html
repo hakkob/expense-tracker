@@ -128,11 +128,7 @@ tbody tr:last-child{border-bottom:none}
 tbody tr:hover{filter:brightness(.97)}
 tbody td{padding:9px 13px;vertical-align:middle}
 
-/* Row shading */
-tbody tr.row-paid          {background:#eef9f2}
-tbody tr.row-unpaid        {background:#fff}
-tbody tr.row-paid.row-alt  {background:#e1f4ea}
-tbody tr.row-unpaid.row-alt{background:#f5f7fc}
+/* Row shading — backgrounds set via JS inline style per month */
 
 /* ── Badges ───────────────────────────────────────────────── */
 .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap}
@@ -506,6 +502,27 @@ const CAT_CARD = {
 };
 const SCHED_BADGE = {'15th':'b-15','30th':'b-30'};
 
+// Month row colours: [unpaid bg, paid bg] — one pair per month (Jan→Dec)
+const MONTH_COLORS = [
+  ['#eef2ff','#dde6ff'], // January   — blue
+  ['#fff0f6','#ffd6e8'], // February  — pink
+  ['#f0fdf4','#d4f7e0'], // March     — green
+  ['#fefce8','#fdf3b0'], // April     — yellow
+  ['#faf5ff','#eed9ff'], // May       — purple
+  ['#ecfeff','#c8f5fa'], // June      — cyan
+  ['#fff7ed','#fde0bc'], // July      — orange
+  ['#f0fdfa','#c9f5ec'], // August    — teal
+  ['#fff1f2','#ffd6d9'], // September — rose
+  ['#fdf4ff','#f3d5ff'], // October   — fuchsia
+  ['#f0f9ff','#d5ecff'], // November  — sky
+  ['#fffbeb','#fde9a0'], // December  — amber
+];
+function monthBg(month, paid) {
+  const idx  = MONTHS.indexOf(month);
+  const pair = MONTH_COLORS[idx >= 0 ? idx : 0];
+  return pair[paid ? 1 : 0];
+}
+
 // ── STATE ───────────────────────────────────────────────────────
 let accessToken      = null;
 let tokenClient      = null;
@@ -779,7 +796,7 @@ function renderTable(data) {
     const schedOpts = ['15th','30th'].map(s =>
       `<option${s === r.paySchedule ? ' selected' : ''}>${s}</option>`).join('');
 
-    html += `<tr class="${paidCls}${alt}" data-id="${safeId}">
+    html += `<tr class="${paidCls}${alt}" data-id="${safeId}" data-month="${esc(r.month)}" style="background:${monthBg(r.month,r.paid)}">
       <td><input type="number" class="inline-text" value="${esc(r.year||'')}" style="width:68px"
         onblur="updateInline('${safeId}','year',this.value)"
         onkeydown="if(event.key==='Enter')this.blur()"></td>
@@ -978,6 +995,7 @@ async function updateInline(id, field, value) {
     if (field === 'paid') {
       const hasAlt = tr.className.includes('row-alt');
       tr.className = (entry.paid ? 'row-paid' : 'row-unpaid') + (hasAlt ? ' row-alt' : '');
+      tr.style.background = monthBg(tr.dataset.month, entry.paid);
       const dateInput = tr.querySelector('.inline-date');
       if (dateInput) dateInput.value = entry.datePaid || '';
     }
