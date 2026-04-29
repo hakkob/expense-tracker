@@ -143,9 +143,19 @@ tbody tr.row-unpaid.row-alt{background:#f5f7fc}
 .b-15  {background:#dce8fa;color:#1a56b8}
 .b-30  {background:#d0f2f3;color:#077e87}
 
-/* ── Paid indicator ───────────────────────────────────────── */
-.chk-on {color:#1a9e52;font-size:.95rem;font-weight:800}
-.chk-off{color:#c8cdd9}
+/* ── Inline paid / date ───────────────────────────────────── */
+.inline-chk{
+  width:16px;height:16px;accent-color:#1a9e52;
+  cursor:pointer;display:block;margin:0 auto;
+}
+.inline-date{
+  border:1px solid #dde1ea;border-radius:5px;
+  padding:3px 6px;font-size:.76rem;color:#333;
+  outline:none;font-family:inherit;background:#fff;
+  transition:border-color .15s;max-width:120px;
+}
+.inline-date:focus{border-color:#4a86e8;box-shadow:0 0 0 2px rgba(74,134,232,.12)}
+.saving-flash{opacity:.5;pointer-events:none}
 
 /* ── Amount ───────────────────────────────────────────────── */
 .amt{font-weight:700;font-family:'Courier New',monospace;font-size:.8rem;white-space:nowrap}
@@ -707,15 +717,21 @@ function renderTable(data) {
     const safeId  = esc(r.id);
     const safeName = esc(r.expense).replace(/'/g,'&#39;');
 
-    html += `<tr class="${paidCls}${alt}">
+    html += `<tr class="${paidCls}${alt}" data-id="${safeId}">
       <td>${esc(r.year)}</td>
       <td>${esc(r.month)}</td>
       <td>${esc(r.expense)}</td>
       <td>${badge(r.category, CAT_BADGE[r.category]||'')}</td>
       <td>${badge(r.paySchedule, SCHED_BADGE[r.paySchedule]||'')}</td>
       <td class="amt">${php(r.amount)}</td>
-      <td>${r.paid?'<span class="chk-on">&#10003;</span>':'<span class="chk-off">&#8212;</span>'}</td>
-      <td>${fmtDate(r.datePaid)}</td>
+      <td style="text-align:center">
+        <input type="checkbox" class="inline-chk" ${r.paid?'checked':''}
+          onchange="updateInline('${safeId}','paid',this.checked)">
+      </td>
+      <td>
+        <input type="date" class="inline-date" value="${esc(r.datePaid||'')}"
+          onchange="updateInline('${safeId}','datePaid',this.value)">
+      </td>
       <td>${esc(r.notes)}</td>
       <td><div class="act-wrap">
         <button class="btn-edit" onclick="openEdit('${safeId}')">Edit</button>
@@ -860,6 +876,53 @@ async function doDelete() {
   } catch (err) {
     toast('Error: ' + err.message, 'err');
     setSyncState('error');
+  }
+}
+
+// ── INLINE EDIT (paid checkbox + date paid) ───────────────────────
+async function updateInline(id, field, value) {
+  const entry = allEntries.find(r => r.id === id);
+  if (!entry) return;
+
+  const prev = { paid: entry.paid, datePaid: entry.datePaid };
+
+  // Update local state
+  entry[field] = value;
+
+  // Auto-fill / clear datePaid when toggling paid
+  if (field === 'paid') {
+    if (value && !entry.datePaid) {
+      entry.datePaid = new Date().toISOString().split('T')[0];
+    } else if (!value) {
+      entry.datePaid = '';
+    }
+  }
+
+  // Update row visuals immediately (no full re-render)
+  const tr = document.querySelector(`tr[data-id="${id}"]`);
+  if (tr) {
+    const hasAlt = tr.className.includes('row-alt');
+    tr.className = (entry.paid ? 'row-paid' : 'row-unpaid') + (hasAlt ? ' row-alt' : '');
+    const dateInput = tr.querySelector('.inline-date');
+    if (dateInput) dateInput.value = entry.datePaid || '';
+    tr.classList.add('saving-flash');
+  }
+
+  setSyncState('syncing');
+  try {
+    const result = await apiCall('saveEntry', { data: { ...entry } });
+    if (result.error) throw new Error(result.error);
+    setSyncState('synced');
+  } catch (err) {
+    // Revert local state and UI
+    entry.paid     = prev.paid;
+    entry.datePaid = prev.datePaid;
+    toast('Save failed: ' + err.message, 'err');
+    setSyncState('error');
+    render();
+    return;
+  } finally {
+    if (tr) tr.classList.remove('saving-flash');
   }
 }
 
