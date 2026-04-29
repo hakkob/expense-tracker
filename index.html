@@ -143,7 +143,7 @@ tbody tr.row-unpaid.row-alt{background:#f5f7fc}
 .b-15  {background:#dce8fa;color:#1a56b8}
 .b-30  {background:#d0f2f3;color:#077e87}
 
-/* ── Inline paid / date ───────────────────────────────────── */
+/* ── Inline inputs ────────────────────────────────────────── */
 .inline-chk{
   width:16px;height:16px;accent-color:#1a9e52;
   cursor:pointer;display:block;margin:0 auto;
@@ -152,31 +152,43 @@ tbody tr.row-unpaid.row-alt{background:#f5f7fc}
   border:1px solid #dde1ea;border-radius:5px;
   padding:3px 6px;font-size:.76rem;color:#333;
   outline:none;font-family:inherit;background:#fff;
-  transition:border-color .15s;max-width:120px;
+  transition:border-color .15s;max-width:130px;
 }
 .inline-date:focus{border-color:#4a86e8;box-shadow:0 0 0 2px rgba(74,134,232,.12)}
-.inline-notes{
+.inline-text,.inline-notes{
   border:1px solid transparent;border-radius:5px;
   padding:3px 6px;font-size:.8rem;color:#333;
   outline:none;font-family:inherit;background:transparent;
-  width:100%;min-width:120px;transition:border-color .15s,background .15s;
+  width:100%;transition:border-color .15s,background .15s;
 }
-.inline-notes:hover{border-color:#dde1ea;background:#fff}
-.inline-notes:focus{border-color:#4a86e8;background:#fff;box-shadow:0 0 0 2px rgba(74,134,232,.12)}
+.inline-text:hover,.inline-notes:hover{border-color:#dde1ea;background:#fff}
+.inline-text:focus,.inline-notes:focus{border-color:#4a86e8;background:#fff;box-shadow:0 0 0 2px rgba(74,134,232,.12)}
+.inline-select{
+  border:1px solid #dde1ea;border-radius:5px;
+  padding:3px 6px;font-size:.78rem;color:#333;
+  outline:none;font-family:inherit;background:#fff;
+  cursor:pointer;transition:border-color .15s;max-width:100%;
+}
+.inline-select:focus{border-color:#4a86e8;box-shadow:0 0 0 2px rgba(74,134,232,.12)}
+.amt-cell{display:flex;align-items:center;gap:1px}
+.amt-sign{font-weight:700;font-family:'Courier New',monospace;font-size:.8rem;color:#2c2f3a;flex-shrink:0}
+.inline-amt{
+  border:1px solid transparent;border-radius:5px;
+  padding:3px 4px;font-size:.8rem;color:#333;font-weight:700;
+  outline:none;font-family:'Courier New',monospace;background:transparent;
+  width:80px;transition:border-color .15s,background .15s;
+}
+.inline-amt:hover{border-color:#dde1ea;background:#fff}
+.inline-amt:focus{border-color:#4a86e8;background:#fff;box-shadow:0 0 0 2px rgba(74,134,232,.12)}
 .saving-flash{opacity:.5;pointer-events:none}
-
-/* ── Amount ───────────────────────────────────────────────── */
-.amt{font-weight:700;font-family:'Courier New',monospace;font-size:.8rem;white-space:nowrap}
 
 /* ── Row actions ──────────────────────────────────────────── */
 .act-wrap{display:flex;gap:4px}
-.btn-edit,.btn-del{
+.btn-del{
   border:none;border-radius:5px;padding:3px 10px;
   cursor:pointer;font-size:.71rem;font-weight:700;transition:background .12s;
+  background:#fde8e8;color:#c03030;
 }
-.btn-edit{background:#e8f0fe;color:#2a66c8}
-.btn-edit:hover{background:#c8d8f8}
-.btn-del{background:#fde8e8;color:#c03030}
 .btn-del:hover{background:#f8c0c0}
 
 /* ── Loading / empty ──────────────────────────────────────── */
@@ -349,8 +361,6 @@ tbody tr.row-unpaid.row-alt{background:#f5f7fc}
       <label>Category</label>
       <select id="fCat" onchange="render()">
         <option value="">All</option>
-        <option>Credit Card</option><option>Loan</option>
-        <option>Utilities</option><option>Insurance</option>
       </select>
       <div class="fsep"></div>
 
@@ -404,10 +414,7 @@ tbody tr.row-unpaid.row-alt{background:#f5f7fc}
 
       <div class="fg">
         <label>Category</label>
-        <select id="mCat">
-          <option>Credit Card</option><option>Loan</option>
-          <option>Utilities</option><option>Insurance</option>
-        </select>
+        <select id="mCat"></select>
       </div>
       <div class="fg">
         <label>Pay Schedule</label>
@@ -490,6 +497,7 @@ const SCOPES     = 'https://www.googleapis.com/auth/userinfo.email';
 const MONTHS = ['January','February','March','April','May','June',
                 'July','August','September','October','November','December'];
 
+const DEFAULT_CATS = ['Credit Card','Loan','Utilities','Insurance'];
 const CAT_BADGE = {
   'Credit Card':'b-cc','Loan':'b-loan','Utilities':'b-util','Insurance':'b-ins'
 };
@@ -499,12 +507,50 @@ const CAT_CARD = {
 const SCHED_BADGE = {'15th':'b-15','30th':'b-30'};
 
 // ── STATE ───────────────────────────────────────────────────────
-let accessToken  = null;
-let tokenClient  = null;
-let allEntries   = [];
-let editId       = null;
-let deleteId     = null;
-let deleteLabel  = '';
+let accessToken      = null;
+let tokenClient      = null;
+let allEntries       = [];
+let editId           = null;
+let deleteId         = null;
+let deleteLabel      = '';
+let customCategories = JSON.parse(localStorage.getItem('expense_custom_cats') || '[]');
+
+function getCategories() {
+  return [...DEFAULT_CATS, ...customCategories.filter(c => !DEFAULT_CATS.includes(c))];
+}
+function catOptions(selected, includeAdd = false) {
+  const opts = getCategories().map(c =>
+    `<option value="${esc(c)}"${c === selected ? ' selected' : ''}>${esc(c)}</option>`
+  ).join('');
+  return opts + (includeAdd ? `<option value="__add__">＋ Add category…</option>` : '');
+}
+function handleCategoryChange(id, select) {
+  if (select.value === '__add__') {
+    const entry = allEntries.find(r => r.id === id);
+    const name  = prompt('New category name:');
+    if (name && name.trim()) {
+      const trimmed = name.trim();
+      if (!getCategories().includes(trimmed)) {
+        customCategories.push(trimmed);
+        localStorage.setItem('expense_custom_cats', JSON.stringify(customCategories));
+      }
+      updateInline(id, 'category', trimmed);
+      render();
+    } else {
+      if (entry) select.value = entry.category;
+    }
+    return;
+  }
+  updateInline(id, 'category', select.value);
+}
+function refreshCategoryFilter() {
+  const sel = document.getElementById('fCat');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All</option>' +
+    getCategories().map(c =>
+      `<option value="${esc(c)}"${c === cur ? ' selected' : ''}>${esc(c)}</option>`
+    ).join('');
+}
 
 // ── AUTH ────────────────────────────────────────────────────────
 function initGIS() {
@@ -576,6 +622,7 @@ async function onSignedIn() {
     allEntries = data.entries || [];
     setSyncState('synced');
     refreshYearFilter();
+    refreshCategoryFilter();
     render();
   } catch (err) {
     console.error(err);
@@ -686,7 +733,7 @@ function renderSummary(data) {
     : '<div style="color:#aab0be;font-size:.8rem">No data</div>';
 
   // Category cards
-  const CATS = ['Credit Card','Loan','Utilities','Insurance'];
+  const CATS = getCategories();
   document.getElementById('catSummary').innerHTML = CATS.map(cat => {
     const rows  = data.filter(r => r.category === cat);
     const total = rows.reduce((s,r) => s+(Number(r.amount)||0), 0);
@@ -709,10 +756,12 @@ function renderTable(data) {
     return;
   }
 
+  const monthOpts = MONTHS.map(m => `<option>${m}</option>`).join('');
+
   let html = `<table><thead><tr>
     <th>Year</th><th>Month</th><th>Expense</th><th>Category</th>
     <th>Pay Sched</th><th>Amount</th><th>Paid</th><th>Date Paid</th>
-    <th>Notes</th><th>Actions</th>
+    <th>Notes</th><th></th>
   </tr></thead><tbody>`;
 
   let lastGroup = null, groupIdx = 0;
@@ -720,32 +769,42 @@ function renderTable(data) {
   data.forEach(r => {
     const grp = `${r.year}||${r.month}`;
     if (grp !== lastGroup) { lastGroup = grp; groupIdx++; }
-    const alt    = groupIdx % 2 === 0 ? ' row-alt' : '';
+    const alt     = groupIdx % 2 === 0 ? ' row-alt' : '';
     const paidCls = r.paid ? 'row-paid' : 'row-unpaid';
     const safeId  = esc(r.id);
     const safeName = esc(r.expense).replace(/'/g,'&#39;');
 
+    const mOpts = MONTHS.map(m =>
+      `<option${m === r.month ? ' selected' : ''}>${m}</option>`).join('');
+    const schedOpts = ['15th','30th'].map(s =>
+      `<option${s === r.paySchedule ? ' selected' : ''}>${s}</option>`).join('');
+
     html += `<tr class="${paidCls}${alt}" data-id="${safeId}">
-      <td>${esc(r.year)}</td>
-      <td>${esc(r.month)}</td>
-      <td>${esc(r.expense)}</td>
-      <td>${badge(r.category, CAT_BADGE[r.category]||'')}</td>
-      <td>${badge(r.paySchedule, SCHED_BADGE[r.paySchedule]||'')}</td>
-      <td class="amt">${php(r.amount)}</td>
+      <td><input type="number" class="inline-text" value="${esc(r.year||'')}" style="width:52px"
+        onblur="updateInline('${safeId}','year',this.value)"
+        onkeydown="if(event.key==='Enter')this.blur()"></td>
+      <td><select class="inline-select" onchange="updateInline('${safeId}','month',this.value)">${mOpts}</select></td>
+      <td><input type="text" class="inline-text" value="${esc(r.expense||'')}" style="min-width:120px"
+        onblur="updateInline('${safeId}','expense',this.value.trim())"
+        onkeydown="if(event.key==='Enter')this.blur()"></td>
+      <td><select class="inline-select" onchange="handleCategoryChange('${safeId}',this)">${catOptions(r.category, true)}</select></td>
+      <td><select class="inline-select" onchange="updateInline('${safeId}','paySchedule',this.value)">${schedOpts}</select></td>
+      <td><div class="amt-cell"><span class="amt-sign">&#8369;</span>
+        <input type="number" class="inline-amt" value="${esc(r.amount||0)}" step="0.01" min="0"
+          onblur="updateInline('${safeId}','amount',this.value)"
+          onkeydown="if(event.key==='Enter')this.blur()">
+      </div></td>
       <td style="text-align:center">
         <input type="checkbox" class="inline-chk" ${r.paid?'checked':''}
           onchange="updateInline('${safeId}','paid',this.checked)">
       </td>
-      <td>
-        <input type="date" class="inline-date" value="${esc(r.datePaid||'')}"
-          onchange="updateInline('${safeId}','datePaid',this.value)">
-      </td>
-      <td><input type="text" class="inline-notes" value="${esc(r.notes||'')}"
-        placeholder="—"
-        onchange="updateInline('${safeId}','notes',this.value)"></td>
+      <td><input type="date" class="inline-date" value="${esc(r.datePaid||'')}"
+        onchange="updateInline('${safeId}','datePaid',this.value)"></td>
+      <td><input type="text" class="inline-notes" value="${esc(r.notes||'')}" placeholder="—"
+        onblur="updateInline('${safeId}','notes',this.value)"
+        onkeydown="if(event.key==='Enter')this.blur()"></td>
       <td><div class="act-wrap">
-        <button class="btn-edit" onclick="openEdit('${safeId}')">Edit</button>
-        <button class="btn-del"  onclick="openConfirm('${safeId}','${safeName}')">Del</button>
+        <button class="btn-del" onclick="openConfirm('${safeId}','${safeName}')">Del</button>
       </div></td>
     </tr>`;
   });
@@ -787,7 +846,7 @@ function openModal(entry = null) {
   document.getElementById('mYear').innerHTML = buildYearOpts(yr);
   document.getElementById('mMonth').value    = mo;
   document.getElementById('mExpense').value  = entry?.expense     || '';
-  document.getElementById('mCat').value      = entry?.category    || 'Credit Card';
+  document.getElementById('mCat').innerHTML  = catOptions(entry?.category || 'Credit Card');
   document.getElementById('mSched').value    = entry?.paySchedule || '15th';
   document.getElementById('mAmount').value   = entry?.amount      || '';
   document.getElementById('mPaid').checked   = entry?.paid        || false;
@@ -889,14 +948,19 @@ async function doDelete() {
   }
 }
 
-// ── INLINE EDIT (paid checkbox + date paid) ───────────────────────
+// ── INLINE EDIT ───────────────────────────────────────────────────
 async function updateInline(id, field, value) {
   const entry = allEntries.find(r => r.id === id);
   if (!entry) return;
 
-  const prev = { paid: entry.paid, datePaid: entry.datePaid };
+  // Parse numeric fields
+  if (field === 'year')   value = parseInt(value)   || entry.year;
+  if (field === 'amount') value = parseFloat(value) || 0;
 
-  // Update local state
+  // Skip if value unchanged
+  if (String(entry[field]) === String(value)) return;
+
+  const prev = { ...entry };
   entry[field] = value;
 
   // Auto-fill / clear datePaid when toggling paid
@@ -911,10 +975,12 @@ async function updateInline(id, field, value) {
   // Update row visuals immediately (no full re-render)
   const tr = document.querySelector(`tr[data-id="${id}"]`);
   if (tr) {
-    const hasAlt = tr.className.includes('row-alt');
-    tr.className = (entry.paid ? 'row-paid' : 'row-unpaid') + (hasAlt ? ' row-alt' : '');
-    const dateInput = tr.querySelector('.inline-date');
-    if (dateInput) dateInput.value = entry.datePaid || '';
+    if (field === 'paid') {
+      const hasAlt = tr.className.includes('row-alt');
+      tr.className = (entry.paid ? 'row-paid' : 'row-unpaid') + (hasAlt ? ' row-alt' : '');
+      const dateInput = tr.querySelector('.inline-date');
+      if (dateInput) dateInput.value = entry.datePaid || '';
+    }
     tr.classList.add('saving-flash');
   }
 
@@ -923,10 +989,10 @@ async function updateInline(id, field, value) {
     const result = await apiCall('saveEntry', { data: { ...entry } });
     if (result.error) throw new Error(result.error);
     setSyncState('synced');
+    refreshYearFilter();
+    renderSummary(filtered()); // update cards without re-rendering table
   } catch (err) {
-    // Revert local state and UI
-    entry.paid     = prev.paid;
-    entry.datePaid = prev.datePaid;
+    Object.assign(entry, prev);
     toast('Save failed: ' + err.message, 'err');
     setSyncState('error');
     render();
